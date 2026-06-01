@@ -1,0 +1,20 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Deploy Lambdas
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Placeholder — CI/CD not yet configured
+        run: |
+          echo "Deploy pipeline not yet implemented."
+          echo "This workflow will package and deploy all Lambda functions on push to main."
+          echo "Implementation scheduled for Project C Phase 9."
