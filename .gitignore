@@ -1,0 +1,32 @@
+# Terraform
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.backup
+*.tfvars
+!example.tfvars
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Lambda build artifacts
+*.zip
+
+# AWS credentials — never commit these
+.env
+credentials.json
+*.pem
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
+
+# Node (for any build tooling)
+node_modules/
