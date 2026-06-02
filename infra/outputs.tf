@@ -43,6 +43,16 @@ output "deploy_role_arn" {
   value       = aws_iam_role.deploy.arn
 }
 
+output "api_endpoint" {
+  description = "Base URL for the pipeline API"
+  value       = "https://${aws_api_gateway_rest_api.pipeline.id}.execute-api.${var.aws_region}.amazonaws.com/${aws_api_gateway_stage.prod.stage_name}"
+}
+
+output "upload_url_endpoint" {
+  description = "Presigned URL endpoint — GET this to receive an S3 upload URL"
+  value       = "https://${aws_api_gateway_rest_api.pipeline.id}.execute-api.${var.aws_region}.amazonaws.com/${aws_api_gateway_stage.prod.stage_name}/upload-url"
+}
+
 output "shared_dynamodb_table_arn" {
   description = "ARN of the shared DynamoDB table (provisioned by Project A)"
   value       = data.aws_dynamodb_table.field_reports.arn
