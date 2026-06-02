@@ -602,6 +602,20 @@ these are separate IAM actions despite sounding similar.
 for which API calls the waiter uses internally — they are often different from the primary action.
 **Affected Systems:** iam.tf
 
+### T-009: Claude 3.5 Sonnet marked Legacy — use Sonnet 4.6 inference profile
+**Symptom:** Would receive ResourceNotFoundException or AccessDeniedException when invoking
+`us.anthropic.claude-3-5-sonnet-20241022-v2:0` — same pattern as T-007 (Haiku 3.x Legacy).
+**Root Cause:** Claude 3.5 Sonnet is marked LEGACY on this account, identical to the
+Haiku 3.0/3.5 situation encountered in Project A. The inference profile shows as registered
+but invocations are blocked because the underlying foundation model is inactive.
+**Fix:** Use `us.anthropic.claude-sonnet-4-6` — ACTIVE on this account. Note: newer Claude 4.x
+models dropped the date/version suffix from inference profile IDs
+(e.g. `us.anthropic.claude-sonnet-4-6` not `us.anthropic.claude-sonnet-4-6-20251231-v1:0`).
+**Prevention:** Before specifying any Bedrock model ID, run:
+`aws bedrock list-inference-profiles --region <region> --query "inferenceProfileSummaries[?contains(inferenceProfileId,'sonnet')].[inferenceProfileId,status]" --output table`
+and confirm status is ACTIVE.
+**Affected Systems:** lambda.tf (BEDROCK_MODEL_ID env var), CLAUDE.md ADR-005.
+
 ---
 
 ## Portfolio Notes

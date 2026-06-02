@@ -1,0 +1,3 @@
+# No external dependencies.
+# boto3 is provided by the Lambda runtime.
+# PDF and image content sent directly to Bedrock as base64 — no rasterization library needed.
