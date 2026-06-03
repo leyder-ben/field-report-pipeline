@@ -23,19 +23,20 @@ That observation became Project C. Projects A and B are the forward-facing infra
 
 ## Current State Snapshot
 
-**Last Updated:** Session 2
+**Last Updated:** Session 3
 
-**Overall Status:** Project A complete and live
+**Overall Status:** Project A complete and live. Project C Phases 1–4 complete and live.
 
 | Project | Status | Phase | Next Action |
 |---|---|---|---|
-| Project A | **Complete** | All 7 phases done | Begin Project C next session |
-| Project B | Not started | — | Blocked on Project A |
-| Project C | Not started | — | Blocked on Project A |
+| Project A | **Complete** | All 7 phases done | — |
+| Project B | Not started | — | Blocked on Project C |
+| Project C | **In Progress** | Phases 1–4 done | Phase 5 — prompt testing with 10-page packet |
 
 **Immediate Next Steps:**
-1. Begin Project C — field-report-pipeline (AI-powered document ingestion)
-2. Start with Phase 1: Terraform infrastructure (S3 intake/processed/UI buckets, IAM roles, Secrets Manager)
+1. Phase 5 — upload 10-page blank form packet, verify all 10 document types classified and extracted correctly
+2. Phase 6 — SNS notification end-to-end test (confirm email arrives with summary)
+3. Phase 7 — upload UI (static/index.html)
 
 **Synthetic Data Status:**
 - Blank form inventory: Complete (10 form types documented)
@@ -279,38 +280,37 @@ Extraction edge cases — documents where field extraction will be ambiguous or 
 ### Project C — field-report-pipeline
 
 **Phase 1 — Infrastructure**
-- [ ] Create GitHub repo: field-report-pipeline (public)
-- [ ] Add CLAUDE.md to repo
-- [ ] Write Terraform: S3 intake bucket (triggers Lambda on object creation)
-- [ ] Write Terraform: S3 processed bucket (archive after successful processing)
-- [ ] Write Terraform: S3 static site (upload UI)
-- [ ] Write Terraform: IAM roles for both Lambdas (S3, DynamoDB, SNS, Bedrock, Textract, Secrets Manager, CloudWatch)
-- [ ] Write Terraform: Secrets Manager placeholders
-- [ ] `terraform plan` → `terraform apply`
+- [✅] Create GitHub repo: field-report-pipeline (public)
+- [✅] Add CLAUDE.md to repo
+- [✅] Write Terraform: S3 intake bucket (triggers Lambda on object creation)
+- [✅] Write Terraform: S3 processed bucket (archive after successful processing)
+- [✅] Write Terraform: S3 static site (upload UI)
+- [✅] Write Terraform: IAM roles for both Lambdas (S3, DynamoDB, SNS, Bedrock, Secrets Manager, CloudWatch)
+- [✅] Write Terraform: Secrets Manager placeholders
+- [✅] `terraform plan` → `terraform apply`
 
 **Phase 2 — Presigned URL endpoint**
-- [ ] Write presigned_url Lambda — generates time-limited S3 upload URL
-- [ ] Write Terraform: API Gateway endpoint → presigned_url Lambda
-- [ ] Test: call endpoint, confirm presigned URL returned, upload file to S3
+- [✅] Write presigned_url Lambda — generates time-limited S3 upload URL
+- [✅] Write Terraform: API Gateway endpoint → presigned_url Lambda
+- [✅] Test: call endpoint, confirm presigned URL returned, upload file to S3
 
 **Phase 3 — Pass 1: extract_report Lambda**
-- [ ] Write extract_report Lambda triggered by S3 object creation
-- [ ] Rasterize each PDF page using pdf2image or similar
-- [ ] Send page batches to Bedrock with adjacency context
-- [ ] Prompt Bedrock to classify pages and group into logical documents
-- [ ] Output page manifest as structured JSON
-- [ ] Unit test with single-page form photo
-- [ ] Unit test with multi-page PDF (boundary detection test)
-- [ ] Write Terraform: Lambda function, S3 event trigger
+- [✅] Write extract_report Lambda triggered by S3 object creation
+- [✅] Send PDF/image to Bedrock via native document/image content types (no rasterization)
+- [✅] Prompt Bedrock to classify pages and group into logical documents
+- [✅] Output page manifest as structured JSON
+- [✅] Unit test with single-page form — 1 document identified correctly
+- [✅] Unit test with 10-page packet — 10 documents identified correctly in 15s
+- [✅] Write Terraform: Lambda function, S3 event trigger
 
 **Phase 4 — Pass 2: merge_summarize Lambda**
-- [ ] Write merge_summarize Lambda triggered by Pass 1 completion
-- [ ] For each document group in manifest: call Bedrock with type-specific extraction schema
-- [ ] Generate plain-English summary via Bedrock Haiku
-- [ ] Write structured record to DynamoDB (one record per document)
-- [ ] Move original file to processed S3 bucket
-- [ ] Publish SNS notification with summary
-- [ ] Test end-to-end: upload form photo, confirm DynamoDB record appears
+- [✅] Write merge_summarize Lambda triggered by Pass 1 completion
+- [✅] For each document group in manifest: call Bedrock with type-specific extraction schema
+- [✅] Generate plain-English summary via Bedrock (Sonnet 4.6 — Haiku blocked by Marketplace)
+- [✅] Write structured record to DynamoDB (one record per document)
+- [✅] Move original file to processed S3 bucket
+- [✅] Publish SNS notification with summary
+- [✅] Test end-to-end: VT pump form → DynamoDB record, file archived, SNS published (4.2s)
 
 **Phase 5 — Bedrock Prompt Development**
 - [ ] Write and test Pass 1 classification prompt
@@ -420,6 +420,48 @@ Extraction edge cases — documents where field extraction will be ambiguous or 
 ---
 
 ## Session Log
+
+---
+
+### Session 3 — Project C Phases 1–4
+
+**Date:** June 2–3, 2026
+
+**Completed:**
+
+**Phase 1 — Infrastructure**
+- Wrote all Terraform: main.tf (S3 remote backend, provider, shared data sources), variables.tf, s3.tf (intake/processed/UI buckets), iam.tf (4 Lambda roles + GitHub Actions deploy role), secrets.tf, outputs.tf
+- Established dev branch workflow — all work on dev, merge to main on phase completion
+- Added paths filter to deploy.yml — doc-only pushes (MD files, infra/, knowledge base) do not trigger pipeline builds
+- Applied cleanly: 21 resources, 0 errors
+
+**Phase 2 — Presigned URL Lambda**
+- Wrote lambda/query/handler.py — GET /upload-url returns presigned PUT URL for intake bucket
+- Wired API Gateway REST API with /upload-url resource, GET + OPTIONS methods, CORS (T-004 depends_on applied)
+- Smoke tested: endpoint returns valid AWS4-signed presigned URL, 5-minute expiry
+
+**Phase 3 — extract_report Lambda (Pass 1)**
+- Decision: use Claude's native PDF document content type instead of rasterizing pages — eliminates PyMuPDF/pdf2image dependency, no Lambda Layer required, cleaner code
+- Wrote lambda/extract_report/handler.py — classifies pages and groups into logical documents via Bedrock Sonnet
+- Deployed with S3 event notification on uploads/ prefix
+- Discovered Claude 3.5 Sonnet is LEGACY on this account (T-009) — updated to Sonnet 4.6 (`us.anthropic.claude-sonnet-4-6`)
+- Smoke tested: 10-page blank form packet correctly classified as 10 distinct documents in 15 seconds
+
+**Phase 4 — merge_summarize Lambda (Pass 2)**
+- Wrote lambda/merge_summarize/handler.py — field extraction per document type via Sonnet, summary via configurable model, DynamoDB write, S3 archive, SNS publish
+- Discovered Haiku 4.5 blocked by AWS Marketplace subscription requirement (T-010) — Model Access console retired; used Sonnet 4.6 for summarization
+- Discovered Write tool creates 0-byte files on /mnt/d/ (WSL2/NTFS) paths — wrote handler via Bash heredoc (T-011)
+- End-to-end test: VT pump form uploaded → classified (0.99 confidence) → extracted → summarized → DynamoDB record written → file archived → SNS published in 4.2 seconds total
+
+**Key Implementation Notes:**
+- Both Lambdas use native PDF/image content types for Bedrock — no rasterization library, no Lambda Layer
+- BEDROCK_MODEL_HAIKU env var points to Sonnet 4.6 on merge_summarize — named Haiku for future swap if Marketplace subscription is resolved
+- Write tool unreliable on NTFS paths — always verify Lambda file sizes with `wc -c` before terraform apply
+
+**Next Session Should Start With:**
+1. Phase 5 — upload 10-page blank form packet, verify all 10 document types extracted correctly
+2. Phase 6 — confirm SNS email notification arrives with summaries
+3. Phase 7 — build and deploy upload UI (static/index.html)
 
 ---
 
@@ -603,6 +645,7 @@ for which API calls the waiter uses internally — they are often different from
 **Affected Systems:** iam.tf
 
 ### T-009: Claude 3.5 Sonnet marked Legacy — use Sonnet 4.6 inference profile
+
 **Symptom:** Would receive ResourceNotFoundException or AccessDeniedException when invoking
 `us.anthropic.claude-3-5-sonnet-20241022-v2:0` — same pattern as T-007 (Haiku 3.x Legacy).
 **Root Cause:** Claude 3.5 Sonnet is marked LEGACY on this account, identical to the
@@ -615,6 +658,34 @@ models dropped the date/version suffix from inference profile IDs
 `aws bedrock list-inference-profiles --region <region> --query "inferenceProfileSummaries[?contains(inferenceProfileId,'sonnet')].[inferenceProfileId,status]" --output table`
 and confirm status is ACTIVE.
 **Affected Systems:** lambda.tf (BEDROCK_MODEL_ID env var), CLAUDE.md ADR-005.
+
+### T-010: Haiku 4.5 blocked by AWS Marketplace subscription requirement
+**Symptom:** AccessDeniedException: Model access is denied due to IAM user or service role is
+not authorized to perform the required AWS Marketplace actions (aws-marketplace:ViewSubscriptions,
+aws-marketplace:Subscribe) to enable access to this model.
+**Root Cause:** AWS retired the Bedrock Model Access console page. Model access is now gated
+through AWS Marketplace subscriptions. Haiku 4.5 shows ACTIVE in both foundation models and
+inference profiles, but invocations require a completed Marketplace subscription that was not
+set up on this account. Sonnet 4.6 was already enabled and unaffected.
+**Fix:** Use `us.anthropic.claude-sonnet-4-6` for summarization (BEDROCK_MODEL_HAIKU env var).
+Cost difference is negligible at demo scale.
+**Prevention:** ACTIVE status in `list-foundation-models` and `list-inference-profiles` does not
+guarantee the model is accessible — a separate Marketplace subscription may also be required.
+Test any new model with a direct invocation before wiring it into a Lambda.
+**Affected Systems:** lambda.tf (BEDROCK_MODEL_HAIKU env var on merge_summarize Lambda).
+
+### T-011: Terraform archive_file produces empty zip from 0-byte Lambda source files
+**Symptom:** UpdateFunctionCode failed with InvalidParameterValueException: Uploaded file must
+be a non-empty zip. terraform apply succeeded but the Lambda zip contained only empty files.
+**Root Cause:** The Claude Code Write tool silently creates 0-byte files when writing to
+`/mnt/d/` (Windows NTFS via WSL2) in certain conditions. The tool reports "File created
+successfully" but the file has no content. archive_file then zips 0-byte files and Lambda
+rejects the upload.
+**Fix:** Write Lambda source files via Bash heredoc instead of the Write tool when targeting
+NTFS paths. Verify with `wc -c <file>` before running terraform apply.
+**Prevention:** After writing any Lambda handler via the Write tool to a `/mnt/d/` path, run
+`wc -c lambda/<function>/handler.py` to confirm the file has content before applying.
+**Affected Systems:** lambda/merge_summarize/handler.py, any future Lambda on NTFS paths.
 
 ---
 
