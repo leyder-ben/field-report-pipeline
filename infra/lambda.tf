@@ -98,5 +98,47 @@ resource "aws_s3_bucket_notification" "intake" {
   depends_on = [aws_lambda_permission.s3_extract_report]
 }
 
-# ── merge_summarize Lambda — Phase 4 ──────────────────────────────────────────
-# ── nl_query Lambda        — Phase 11 ─────────────────────────────────────────
+# ── merge_summarize Lambda ────────────────────────────────────────────────────
+# Pass 2: receives page manifest from extract_report, extracts fields per
+# document type via Sonnet, summarizes via Sonnet, writes to DynamoDB,
+# archives original file to processed bucket, publishes SNS notification.
+
+resource "aws_cloudwatch_log_group" "merge_summarize" {
+  name              = "/aws/lambda/field-report-merge-summarize"
+  retention_in_days = 30
+}
+
+data "archive_file" "merge_summarize" {
+  type        = "zip"
+  source_dir  = "${path.module}/../lambda/merge_summarize"
+  output_path = "${path.module}/../lambda/merge_summarize.zip"
+}
+
+resource "aws_lambda_function" "merge_summarize" {
+  function_name    = "field-report-merge-summarize"
+  role             = aws_iam_role.merge_summarize.arn
+  handler          = "handler.lambda_handler"
+  runtime          = "python3.12"
+  timeout          = 600
+  memory_size      = 1024
+  filename         = data.archive_file.merge_summarize.output_path
+  source_code_hash = data.archive_file.merge_summarize.output_base64sha256
+
+  environment {
+    variables = {
+      INTAKE_BUCKET        = aws_s3_bucket.intake.bucket
+      PROCESSED_BUCKET     = aws_s3_bucket.processed.bucket
+      DYNAMODB_TABLE       = var.shared_dynamodb_table_name
+      SNS_TOPIC_ARN        = data.aws_sns_topic.field_report_notifications.arn
+      BEDROCK_MODEL_SONNET = "us.anthropic.claude-sonnet-4-6"
+      BEDROCK_MODEL_HAIKU  = "us.anthropic.claude-sonnet-4-6"
+    }
+  }
+
+  depends_on = [
+    aws_cloudwatch_log_group.merge_summarize,
+    aws_iam_role_policy.merge_summarize,
+  ]
+}
+
+# ── nl_query Lambda — Phase 11 ────────────────────────────────────────────────
